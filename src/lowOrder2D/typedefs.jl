@@ -17,6 +17,16 @@ mutable struct  TwoDVort
     vz :: Float64
 end
 
+mutable struct TwoDVortViscous
+    x :: Float64
+    z :: Float64
+    s :: Float64
+    vc :: Float64
+    vx :: Float64
+    vz :: Float64
+    dvc :: Float64
+end
+
 struct TwoDFlowField
     velX :: MotionDef
     velZ :: MotionDef
@@ -26,6 +36,25 @@ struct TwoDFlowField
     lev :: Vector{TwoDVort}
     extv :: Vector{TwoDVort}
     function TwoDFlowField(velX = ConstDef(0.), velZ = ConstDef(0.))
+        u = [0;]
+        w = [0;]
+        tev = TwoDVort[]
+        lev = TwoDVort[]
+        extv = TwoDVort[]
+        new(velX, velZ, u, w, tev, lev, extv)
+    end
+end
+
+struct TwoDFlowFieldViscous
+    velX :: MotionDef
+    velZ :: MotionDef
+    u :: Vector{Float64}
+    w :: Vector{Float64}
+    tev :: Vector{TwoDVort}
+    lev :: Vector{TwoDVort}
+    extv :: Vector{TwoDVort}
+    nu :: Float64
+    function TwoDFlowFieldViscous(nu=100000, velX = ConstDef(0.), velZ = ConstDef(0.))
         u = [0;]
         w = [0;]
         tev = TwoDVort[]
@@ -64,7 +93,7 @@ struct TwoDSurf
     levflag :: Vector{Int8}
     initpos :: Vector{Float64}
     rho :: Float64
-    
+
     function TwoDSurf(coord_file, pvt, kindef,lespcrit=zeros(1); c=1., uref=1., ndiv=70, naterm=35, initpos = [0.; 0.], rho = 0.04)
         theta = zeros(ndiv)
         x = zeros(ndiv)
@@ -214,7 +243,7 @@ function (kelv::KelvinCondition)(tev_iter::Array{Float64})
     ntev = length(kelv.field.tev)
 
     uprev, wprev = ind_vel([kelv.field.tev[ntev]], kelv.surf.bnd_x, kelv.surf.bnd_z)
-    
+
     #Update the TEV strength
     kelv.field.tev[ntev].s = tev_iter[1]
 
@@ -222,7 +251,7 @@ function (kelv::KelvinCondition)(tev_iter::Array{Float64})
 
     kelv.surf.uind[:] = kelv.surf.uind[:] .- uprev .+ unow
     kelv.surf.wind[:] = kelv.surf.wind[:] .- wprev .+ wnow
-    
+
     #Calculate downwash
     update_downwash(kelv.surf, [kelv.field.u[1],kelv.field.w[1]])
 
@@ -246,10 +275,10 @@ function (kelv::KelvinConditionMult)(tev_iter::Array{Float64})
     nsurf = length(kelv.surf)
 
     val = zeros(nsurf)
-    
+
     nlev = length(kelv.field.lev)
     ntev = length(kelv.field.tev)
-    
+
     tev_list = kelv.field.tev[ntev-nsurf+1:ntev]
     for i = 1:nsurf
 
@@ -260,7 +289,7 @@ function (kelv::KelvinConditionMult)(tev_iter::Array{Float64})
             end
         end
         uprev, wprev = ind_vel([tev_list; bv_list], kelv.surf[i].bnd_x, kelv.surf[i].bnd_z)
-    
+
         #Update the TEV strength
         kelv.field.tev[ntev-nsurf+i].s = tev_iter[i]
 
@@ -268,18 +297,18 @@ function (kelv::KelvinConditionMult)(tev_iter::Array{Float64})
 
         kelv.surf[i].uind[:] = kelv.surf[i].uind[:] .- uprev .+ unow
         kelv.surf[i].wind[:] = kelv.surf[i].wind[:] .- wprev .+ wnow
-    
+
         #Calculate downwash
         update_downwash(kelv.surf[i], [kelv.field.u[1],kelv.field.w[1]])
     end
-    
+
     for i = 1:nsurf
         #Update Fourier coefficients and bv strength
         update_a0anda1(kelv.surf[i])
         update_a2toan(kelv.surf[i])
         update_bv(kelv.surf[i])
-        
-        
+
+
         val[i] = kelv.surf[i].uref*kelv.surf[i].c*pi*(kelv.surf[i].a0[1] + kelv.surf[i].aterm[1]/2.) -
             kelv.surf[i].uref*kelv.surf[i].c*pi*(kelv.surf[i].a0prev[1] + kelv.surf[i].aprev[1]/2.) +
             kelv.field.tev[ntev-nsurf+i].s
@@ -295,12 +324,12 @@ end
 
 function (kelv::KelvinKutta)(v_iter::Array{Float64})
     val = zeros(2)
-    
+
     nlev = length(kelv.field.lev)
     ntev = length(kelv.field.tev)
 
     uprev, wprev = ind_vel([kelv.field.tev[ntev]; kelv.field.lev[nlev]], kelv.surf.bnd_x, kelv.surf.bnd_z)
-    
+
     #Update the TEV and LEV strengths
     kelv.field.tev[ntev].s = v_iter[1]
     kelv.field.lev[nlev].s = v_iter[2]
@@ -309,17 +338,17 @@ function (kelv::KelvinKutta)(v_iter::Array{Float64})
 
     kelv.surf.uind[:] = kelv.surf.uind[:] .- uprev .+ unow
     kelv.surf.wind[:] = kelv.surf.wind[:] .- wprev .+ wnow
-    
+
     #Calculate downwash
     update_downwash(kelv.surf ,[kelv.field.u[1],kelv.field.w[1]])
 
     #Calculate first two fourier coefficients
     update_a0anda1(kelv.surf)
 
-    val[1] = kelv.surf.uref*kelv.surf.c*pi*(kelv.surf.a0[1] + kelv.surf.aterm[1]/2.) - 
+    val[1] = kelv.surf.uref*kelv.surf.c*pi*(kelv.surf.a0[1] + kelv.surf.aterm[1]/2.) -
         kelv.surf.uref*kelv.surf.c*pi*(kelv.surf.a0prev[1] + kelv.surf.aprev[1]/2.) +
         kelv.field.tev[ntev].s + kelv.field.lev[nlev].s
-    
+
     if (kelv.surf.a0[1] > 0)
         lesp_cond = kelv.surf.lespcrit[1]
     else
@@ -343,7 +372,7 @@ function (kelv::KelvinKuttaMult)(v_iter::Array{Float64})
 
     nlev = length(kelv.field.lev)
     ntev = length(kelv.field.tev)
-    
+
     tev_list = kelv.field.tev[ntev-nsurf+1:ntev]
     lev_list = kelv.field.lev[nlev-nsurf.+kelv.shed_ind]
 
@@ -356,20 +385,20 @@ function (kelv::KelvinKuttaMult)(v_iter::Array{Float64})
             end
         end
         uprev, wprev = ind_vel([tev_list; lev_list; bv_list], kelv.surf[i].bnd_x, kelv.surf[i].bnd_z)
-        
+
         #Update the shed vortex strengths
         kelv.field.tev[ntev-nsurf+i].s = v_iter[i]
-    
+
         if i in kelv.shed_ind
             levcount += 1
             kelv.field.lev[nlev-nsurf+i].s = v_iter[nsurf+levcount]
-        end            
+        end
 
         unow, wnow = ind_vel([tev_list; lev_list; bv_list], kelv.surf[i].bnd_x, kelv.surf[i].bnd_z)
 
         kelv.surf[i].uind[:] = kelv.surf[i].uind[:] .- uprev .+ unow
         kelv.surf[i].wind[:] = kelv.surf[i].wind[:] .- wprev .+ wnow
-        
+
         #Calculate downwash
         update_downwash(kelv.surf[i], [kelv.field.u[1],kelv.field.w[1]])
     end
@@ -391,14 +420,13 @@ function (kelv::KelvinKuttaMult)(v_iter::Array{Float64})
             else
                 lesp_cond = -kelv.surf[i].lespcrit[1]
             end
-            
+
             val[levcount+nsurf] = kelv.surf[i].a0[1] - lesp_cond
         else
             val[i] = kelv.surf[i].uref*kelv.surf[i].c*pi*(kelv.surf[i].a0[1] + kelv.surf[i].aterm[1]/2.) -
                 kelv.surf[i].uref*kelv.surf[i].c*pi*(kelv.surf[i].a0prev[1] + kelv.surf[i].aprev[1]/2.) +
                 kelv.field.tev[ntev-nsurf+i].s
         end
-    end   
+    end
     return val
 end
-

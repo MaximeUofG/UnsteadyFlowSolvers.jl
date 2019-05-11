@@ -42,7 +42,7 @@ function add_indbound_b(surf::TwoDSurf, surfj::TwoDSurf)
     surf.uind[:] += uind
     surf.wind[:] += wind
     return surf
-    
+
 end
 
 # Function for updating the downwash
@@ -200,6 +200,38 @@ function update_bv(surf::TwoDSurf)
     end
 end
 
+# Function for calculating the diffusion velocity induced by viscosity
+function visc_vel(vortex::Vector{TwoDVort},t_x,t_z, nu=100000)
+    ud_x = zeros(length(t_x))
+    ud_z = zeros(length(t_x))
+
+    #Use of Vatista's expressions
+    for i = 1:length(t_x)
+        for j = 1:length(vortex)
+            xdist = vortex[j].x - t_x[i]
+            zdist = vortex[j].z - t_z[i]
+            distsq = xdist*xdist + zdist*zdist
+            ud_x[i] = ud_x[i] + 6*nu/(pi*vortex[i].s)*(xdist*distsq*vortex[j].vc^4*vortex[j].s)/((distsq*distsq+vortex[j].vc^4)^(5/2))
+            ud_z[i] = ud_z[i] + 6*nu/(pi*vortex[i].s)*(zdist*distsq*vortex[j].vc^4*vortex[j].s)/((distsq*distsq+vortex[j].vc^4)^(5/2))
+        end
+    end
+    return ud_x, ud_z
+end
+
+# Update core size function, calculate dvc
+function update_coresize(vortices::Vector{TwoDVort}, nu=100000)
+    dvc = zeros(length(vortices))
+    for i = 1:length(vortices)
+        for j = 1:length(vortices)
+            xdist = vortices[i].x - vortices[j].x
+            zdist = vortices[i].z - vortices[j].z
+            distsq = xdist*xdist + zdist*zdist
+            dvc[i] += 6*nu*vortices[i].vc*vortices[i].vc+distsq*(3*vortices[j].vc*vortices[j].vc-distsq*distsq)/((vortices[j].vc^4+distsq*distsq)^2)
+        end
+    end
+    return dvc
+end
+
 # Function for calculating the wake rollup
 function wakeroll(surf::TwoDSurf, curfield::TwoDFlowField, dt)
 
@@ -272,6 +304,22 @@ function wakeroll(surf::TwoDSurf, curfield::TwoDFlowField, dt)
         curfield.extv[i].z += dt*curfield.extv[i].vz
     end
 
+    #Consider the effets of viscosity on each vortex
+    for i = 1:ntev
+        curfield.tev[i].x += dt*visc_vel(curfield.tev[i],[map(q -> q.x, curfield.tev[i])], [map(q -> q.z, curfield.tev[i])]).ud_x
+        curfield.tev[i].z += dt*visc_vel(curfield.tev[i],[map(q -> q.x, curfield.tev[i])], [map(q -> q.z, curfield.tev[i])]).ud_z
+        curfield.tev[i].vc = sqrt(curfield.tev[i].vc*curfield.tev[i].vc + update_coresize(curfield.tev)[i]*dt)
+    end
+    for i = 1:nlev
+        curfield.lev[i].x += dt*visc_vel(curfiel.lev[i],[map(q -> q.x, curfield.lev[i])], [map(q -> q.z, curfield.lev[i])]).ud_x
+        curfield.lev[i].z += dt*visc_vel(curfield.lev[i],[map(q -> q.x, curfield.lev[i])], [map(q -> q.z, curfield.lev[i])]).ud_z
+        curfield.lev[i].vc = sqrt(curfield.lev[i].vc*curfield.lev[i].vc + update_coresize(curfield.lev)[i]*dt)
+    end
+    for i = 1:nextv
+        curfield.extv[i].x += dt*visc_vel(curfield.extv[i],[map(q -> q.x, curfield.extv[i])], [map(q -> q.z, curfield.extv[i])]).ud_x
+        curfield.extv[i].z += dt*visc_vel(curfield.extv[i],[map(q -> q.x, curfield.extv[i])], [map(q -> q.z, curfield.extv[i])]).ud_z
+        curfield.extv[i].vc = sqrt(curfield.extv[i].vc*curfield.extv[i].vc + update_coresize(curfield.extv)[i]*dt)
+    end
     return curfield
 end
 
@@ -350,6 +398,22 @@ function wakeroll(surf::Vector{TwoDSurf}, curfield::TwoDFlowField, dt)
         curfield.extv[i].z += dt*curfield.extv[i].vz
     end
 
+    #Consider the effets of viscosity on each vortex
+    for i = 1:ntev
+        curfield.tev[i].x += dt*visc_vel(curfield.tev[i],[map(q -> q.x, curfield.tev[i])], [map(q -> q.z, curfield.tev[i])]).ud_x
+        curfield.tev[i].z += dt*visc_vel(curfield.tev[i],[map(q -> q.x, curfield.tev[i])], [map(q -> q.z, curfield.tev[i])]).ud_z
+        curfield.tev[i].vc = sqrt(curfield.tev[i].vc*curfield.tev[i].vc + update_coresize(curfield.tev)[i]*dt)
+    end
+    for i = 1:nlev
+        curfield.lev[i].x += dt*visc_vel(curfiel.lev[i],[map(q -> q.x, curfield.lev[i])], [map(q -> q.z, curfield.lev[i])]).ud_x
+        curfield.lev[i].z += dt*visc_vel(curfield.lev[i],[map(q -> q.x, curfield.lev[i])], [map(q -> q.z, curfield.lev[i])]).ud_z
+        curfield.lev[i].vc = sqrt(curfield.lev[i].vc*curfield.lev[i].vc + update_coresize(curfield.lev)[i]*dt)
+    end
+    for i = 1:nextv
+        curfield.extv[i].x += dt*visc_vel(curfield.extv[i],[map(q -> q.x, curfield.extv[i])], [map(q -> q.z, curfield.extv[i])]).ud_x
+        curfield.extv[i].z += dt*visc_vel(curfield.extv[i],[map(q -> q.x, curfield.extv[i])], [map(q -> q.z, curfield.extv[i])]).ud_z
+        curfield.extv[i].vc = sqrt(curfield.extv[i].vc*curfield.extv[i].vc + update_coresize(curfield.extv)[i]*dt)
+    end
     return curfield
 end
 
@@ -408,7 +472,7 @@ function place_lev(surf::TwoDSurf,field::TwoDFlowField,dt)
 end
 
 function place_lev(surf::Vector{TwoDSurf},field::TwoDFlowField,dt,shed_ind::Vector{Int})
-    nsurf = length(surf) 
+    nsurf = length(surf)
     nlev = length(field.lev)
 
     for i = 1:nsurf
@@ -422,7 +486,7 @@ function place_lev(surf::Vector{TwoDSurf},field::TwoDFlowField,dt,shed_ind::Vect
             else
                 xloc = surf[i].bnd_x[1]+(1. /3.)*(field.lev[nlev-nsurf+i].x - surf[i].bnd_x[1])
                 zloc = surf[i].bnd_z[1]+(1. /3.)*(field.lev[nlev-nsurf+i].z - surf[i].bnd_z[1])
-                push!(field.lev,TwoDVort(xloc,zloc,0.,0.02*surf[i].c,0.,0.))            
+                push!(field.lev,TwoDVort(xloc,zloc,0.,0.02*surf[i].c,0.,0.))
             end
         else
             push!(field.lev, TwoDVort(0., 0., 0., 0., 0., 0.))
@@ -453,6 +517,7 @@ function ind_vel(src::Vector{TwoDVort},t_x,t_z)
             distsq = xdist*xdist + zdist*zdist
             uind[itr] = uind[itr] - src[isr].s*zdist/(2*pi*sqrt(src[isr].vc*src[isr].vc*src[isr].vc*src[isr].vc + distsq*distsq))
             wind[itr] = wind[itr] + src[isr].s*xdist/(2*pi*sqrt(src[isr].vc*src[isr].vc*src[isr].vc*src[isr].vc + distsq*distsq))
+            #Use of Vatista's expressions
         end
     end
     return uind, wind
@@ -600,14 +665,14 @@ function update_kinem2DOF(surf::TwoDSurf, strpar :: TwoDOFPar, kinem :: KinemPar
     R1 = 4*strpar.kappa*surf.uref*surf.uref*cl/(pi*surf.c*surf.c) - 2*strpar.w_h*strpar.w_h*(strpar.cubic_h_1*kinem.h + strpar.cubic_h_3*kinem.h^3)/surf.c - strpar.x_alpha*sin(kinem.alpha)*kinem.alphadot*kinem.alphadot
 
     R2 = 8*strpar.kappa*surf.uref*surf.uref*cm/(pi*surf.c*surf.c) - strpar.w_alpha*strpar.w_alpha*strpar.r_alpha*strpar.r_alpha*(strpar.cubic_alpha_1*kinem.alpha + strpar.cubic_alpha_3*kinem.alpha^3)
-    
+
     kinem.hddot_pr = (1/(m11*m22-m21*m12))*(m22*R1-m12*R2)
     kinem.alphaddot_pr = (1/(m11*m22-m21*m12))*(-m21*R1+m11*R2)
 
     #Kinematics are updated according to the 2DOF response
     kinem.alphadot = kinem.alphadot_pr + (dt/12.)*(23*kinem.alphaddot_pr - 16*kinem.alphaddot_pr2 + 5*kinem.alphaddot_pr3)
     kinem.hdot = kinem.hdot_pr + (dt/12)*(23*kinem.hddot_pr-16*kinem.hddot_pr2 + 5*kinem.hddot_pr3)
-    
+
     kinem.alpha = kinem.alpha_pr + (dt/12)*(23*kinem.alphadot_pr-16*kinem.alphadot_pr2 + 5*kinem.alphadot_pr3)
     kinem.h = kinem.h_pr + (dt/12)*(23*kinem.hdot_pr - 16*kinem.hdot_pr2 + 5*kinem.hdot_pr3)
 
@@ -616,9 +681,6 @@ function update_kinem2DOF(surf::TwoDSurf, strpar :: TwoDOFPar, kinem :: KinemPar
     surf.kinem.hdot = kinem.hdot
     surf.kinem.alpha = kinem.alpha
     surf.kinem.h = kinem.h
-    
+
     return surf, kinem
 end
-
-
-    
