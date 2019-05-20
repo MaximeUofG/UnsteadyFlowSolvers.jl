@@ -306,18 +306,21 @@ function wakeroll(surf::TwoDSurf, curfield::TwoDFlowField, dt)
 
     #Consider the effets of viscosity on each vortex
     for i = 1:ntev
-        curfield.tev[i].x += dt*visc_vel(curfield.tev[i],[map(q -> q.x, curfield.tev[i])], [map(q -> q.z, curfield.tev[i])]).ud_x
-        curfield.tev[i].z += dt*visc_vel(curfield.tev[i],[map(q -> q.x, curfield.tev[i])], [map(q -> q.z, curfield.tev[i])]).ud_z
+        ud_x, ud_z = visc_vel(curfield.tev[i],[map(q -> q.x, curfield.tev[i])], [map(q -> q.z, curfield.tev[i])])
+        curfield.tev[i].x += dt*ud_x
+        curfield.tev[i].z += dt*ud_z
         curfield.tev[i].vc = sqrt(curfield.tev[i].vc*curfield.tev[i].vc + update_coresize(curfield.tev)[i]*dt)
     end
     for i = 1:nlev
-        curfield.lev[i].x += dt*visc_vel(curfiel.lev[i],[map(q -> q.x, curfield.lev[i])], [map(q -> q.z, curfield.lev[i])]).ud_x
-        curfield.lev[i].z += dt*visc_vel(curfield.lev[i],[map(q -> q.x, curfield.lev[i])], [map(q -> q.z, curfield.lev[i])]).ud_z
+        ud_x, ud_z = visc_vel(curfiel.lev[i],[map(q -> q.x, curfield.lev[i])], [map(q -> q.z, curfield.lev[i])])
+        curfield.lev[i].x += dt*ud_x
+        curfield.lev[i].z += dt*ud_z
         curfield.lev[i].vc = sqrt(curfield.lev[i].vc*curfield.lev[i].vc + update_coresize(curfield.lev)[i]*dt)
     end
     for i = 1:nextv
-        curfield.extv[i].x += dt*visc_vel(curfield.extv[i],[map(q -> q.x, curfield.extv[i])], [map(q -> q.z, curfield.extv[i])]).ud_x
-        curfield.extv[i].z += dt*visc_vel(curfield.extv[i],[map(q -> q.x, curfield.extv[i])], [map(q -> q.z, curfield.extv[i])]).ud_z
+        ud_x, ud_z = visc_vel(curfield.extv[i],[map(q -> q.x, curfield.extv[i])], [map(q -> q.z, curfield.extv[i])])
+        curfield.extv[i].x += dt*ud_x
+        curfield.extv[i].z += dt*ud_z
         curfield.extv[i].vc = sqrt(curfield.extv[i].vc*curfield.extv[i].vc + update_coresize(curfield.extv)[i]*dt)
     end
     return curfield
@@ -400,18 +403,21 @@ function wakeroll(surf::Vector{TwoDSurf}, curfield::TwoDFlowField, dt)
 
     #Consider the effets of viscosity on each vortex
     for i = 1:ntev
-        curfield.tev[i].x += dt*visc_vel(curfield.tev[i],[map(q -> q.x, curfield.tev[i])], [map(q -> q.z, curfield.tev[i])]).ud_x
-        curfield.tev[i].z += dt*visc_vel(curfield.tev[i],[map(q -> q.x, curfield.tev[i])], [map(q -> q.z, curfield.tev[i])]).ud_z
+        ud_x, ud_z = visc_vel(curfield.tev[i],[map(q -> q.x, curfield.tev[i])], [map(q -> q.z, curfield.tev[i])])
+        curfield.tev[i].x += dt*ud_x
+        curfield.tev[i].z += dt*ud_z
         curfield.tev[i].vc = sqrt(curfield.tev[i].vc*curfield.tev[i].vc + update_coresize(curfield.tev)[i]*dt)
     end
     for i = 1:nlev
-        curfield.lev[i].x += dt*visc_vel(curfiel.lev[i],[map(q -> q.x, curfield.lev[i])], [map(q -> q.z, curfield.lev[i])]).ud_x
-        curfield.lev[i].z += dt*visc_vel(curfield.lev[i],[map(q -> q.x, curfield.lev[i])], [map(q -> q.z, curfield.lev[i])]).ud_z
+        ud_x, ud_z = visc_vel(curfiel.lev[i],[map(q -> q.x, curfield.lev[i])], [map(q -> q.z, curfield.lev[i])])
+        curfield.lev[i].x += dt*ud_x
+        curfield.lev[i].z += dt*ud_z
         curfield.lev[i].vc = sqrt(curfield.lev[i].vc*curfield.lev[i].vc + update_coresize(curfield.lev)[i]*dt)
     end
     for i = 1:nextv
-        curfield.extv[i].x += dt*visc_vel(curfield.extv[i],[map(q -> q.x, curfield.extv[i])], [map(q -> q.z, curfield.extv[i])]).ud_x
-        curfield.extv[i].z += dt*visc_vel(curfield.extv[i],[map(q -> q.x, curfield.extv[i])], [map(q -> q.z, curfield.extv[i])]).ud_z
+        ud_x, ud_z = visc_vel(curfield.extv[i],[map(q -> q.x, curfield.extv[i])], [map(q -> q.z, curfield.extv[i])])
+        curfield.extv[i].x += dt*ud_x
+        curfield.extv[i].z += dt*ud_z
         curfield.extv[i].vc = sqrt(curfield.extv[i].vc*curfield.extv[i].vc + update_coresize(curfield.extv)[i]*dt)
     end
     return curfield
