@@ -201,7 +201,9 @@ function update_bv(surf::TwoDSurf)
 end
 
 # Function for calculating the diffusion velocity induced by viscosity
-function visc_vel(vortex::Vector{TwoDVort},t_x,t_z, nu=100000)
+function visc_vel(vortex::TwoDVort,t_x,t_z, nu=100000)
+
+    println("inside visc_vel")
     ud_x = zeros(length(t_x))
     ud_z = zeros(length(t_x))
 
