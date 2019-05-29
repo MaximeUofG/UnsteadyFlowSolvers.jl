@@ -208,11 +208,17 @@ function visc_vel(vortex::TwoDVort,t_x,t_z, nu=100000)
 
     #Use of Vatista's expressions
     for i = 1:length(t_x)
-            xdist = vortex.x - t_x[i]
-            zdist = vortex.z - t_z[i]
+            xdist = t_x[i] - vortex.x
+            zdist = t_z[i] - vortex.z  
             distsq = xdist*xdist + zdist*zdist
             ud_x = ud_x + 6*nu/(pi*vortex.s)*(xdist*distsq*vortex.vc^4*vortex.s)/((distsq*distsq+vortex.vc^4)^(5/2))
             ud_z = ud_z + 6*nu/(pi*vortex.s)*(zdist*distsq*vortex.vc^4*vortex.s)/((distsq*distsq+vortex.vc^4)^(5/2))
+    end
+
+    if ud_x == NaN
+        ud_x=0
+    elseif ud_z == NaN
+        ud_z = 0
     end
     return ud_x, ud_z
 end
@@ -230,7 +236,11 @@ function update_coresize(vortex::TwoDVort, vortices::Vector{TwoDVort}, nu=100000
         end
     end
 
-    println("dvc try11  :", dvc)
+    if isnan(dvc)
+        dvc = 1.
+    elseif dvc == 0.
+        dvc = 1.
+    end
     return dvc
 end
 
@@ -308,7 +318,6 @@ function wakeroll(surf::TwoDSurf, curfield::TwoDFlowField, dt)
 
     #Consider the effets of viscosity on each vortex
     for i = 1:ntev-1
-        println("in tev10")
         ud_x, ud_z = visc_vel(curfield.tev[i], [map(q -> q.x, curfield.tev); map(q -> q.x, curfield.lev); map(q -> q.x, curfield.extv)], [map(q -> q.z, curfield.tev); map(q -> q.z, curfield.lev); map(q -> q.z, curfield.extv) ])
         curfield.tev[i].x += dt*ud_x
         curfield.tev[i].z += dt*ud_z
