@@ -201,15 +201,15 @@ function update_bv(surf::TwoDSurf)
 end
 
 # Function for calculating the diffusion velocity induced by viscosity
-function visc_vel(vortex::TwoDVort,t_x,t_z, nu=100000)
+function visc_vel(vortex::TwoDVort,t_x,t_z, nu=0.000001)
 
     ud_x = 0.
     ud_z = 0.
 
     #Use of Vatista's expressions
-    for i = 1:length(t_x)
+    for i = 1:length(length(t_z))
             xdist = t_x[i] - vortex.x
-            zdist = t_z[i] - vortex.z  
+            zdist = t_z[i] - vortex.z
             distsq = xdist*xdist + zdist*zdist
             ud_x = ud_x + 6*nu/(pi*vortex.s)*(xdist*distsq*vortex.vc^4*vortex.s)/((distsq*distsq+vortex.vc^4)^(5/2))
             ud_z = ud_z + 6*nu/(pi*vortex.s)*(zdist*distsq*vortex.vc^4*vortex.s)/((distsq*distsq+vortex.vc^4)^(5/2))
@@ -224,7 +224,7 @@ function visc_vel(vortex::TwoDVort,t_x,t_z, nu=100000)
 end
 
 # Update core size function, calculate dvc
-function update_coresize(vortex::TwoDVort, vortices::Vector{TwoDVort}, nu=100000)
+function update_coresize(vortex::TwoDVort, vortices::Vector{TwoDVort}, nu=0.000001)
 
     dvc = 0.
     for j = 1:length(vortices)
@@ -232,14 +232,8 @@ function update_coresize(vortex::TwoDVort, vortices::Vector{TwoDVort}, nu=100000
             xdist = vortex.x - vortices[j].x
             zdist = vortex.z - vortices[j].z
             distsq = xdist*xdist + zdist*zdist
-            dvc += 6*nu*vortex.vc*vortex.vc+distsq*(3*vortices[j].vc*vortices[j].vc-distsq*distsq)/((vortices[j].vc^4+distsq*distsq)^2)
+            dvc += 24*nu*vortex.vc*vortex.vc+(distsq*vortices[j].vc^4)/((vortices[j].vc^4+distsq*distsq)^2)
         end
-    end
-
-    if isnan(dvc)
-        dvc = 1.
-    elseif dvc == 0.
-        dvc = 1.
     end
     return dvc
 end
@@ -324,7 +318,6 @@ function wakeroll(surf::TwoDSurf, curfield::TwoDFlowField, dt)
         curfield.tev[i].vc = sqrt(curfield.tev[i].vc*curfield.tev[i].vc + update_coresize(curfield.tev[i],curfield.tev)*dt)
     end
     for i = 1:nlev
-        println("in lev1")
         ud_x, ud_z = visc_vel(curfield.lev[i], [map(q -> q.x, curfield.tev); map(q -> q.x, curfield.lev); map(q -> q.x, curfield.extv)], [map(q -> q.z, curfield.tev); map(q -> q.z, curfield.lev); map(q -> q.z, curfield.extv) ])
         curfield.lev[i].x += dt*ud_x
         curfield.lev[i].z += dt*ud_z
