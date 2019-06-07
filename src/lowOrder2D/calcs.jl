@@ -216,6 +216,26 @@ function visc_vel(vortex::TwoDVort,t_x,t_z, nu=0.00001)
     end
 end
 
+function visc_vel2(vortex::Vector{TwoDVort},t_x,t_z, nu=0.0001)
+
+    ud_x = zeros(length(t_x))
+    ud_z = zeros(length(t_x))
+
+    #Use of Vatista's expressions
+    for i = 1:length(t_x)
+        if i < length(vortex)
+            for j = 1:length(vortex)
+                xdist = t_x[i] - vortex[j].x
+                zdist = t_z[i] - vortex[j].z
+                distsq = xdist*xdist + zdist*zdist
+                ud_x[i] += 6*nu/(pi*vortex[i].s)*(xdist*distsq*vortex[j].vc^4*vortex[j].s)/((distsq*distsq+vortex[j].vc^4)^(5/2))
+                ud_z[i] += 6*nu/(pi*vortex[i].s)*(zdist*distsq*vortex[j].vc^4*vortex[j].s)/((distsq*distsq+vortex[j].vc^4)^(5/2))
+            end
+        end
+    end
+    return ud_x, ud_z
+end
+
 # Update core size function, calculate dvc
 function update_coresize(vortex::TwoDVort, vortices::Vector{TwoDVort}, nu=0.00001)
 
@@ -226,10 +246,11 @@ function update_coresize(vortex::TwoDVort, vortices::Vector{TwoDVort}, nu=0.0000
             zdist = vortex.z - vortices[j].z
             distsq = xdist*xdist + zdist*zdist
             dvc += 24*nu*vortex.vc*vortex.vc+(distsq*vortices[j].vc^4)/((vortices[j].vc^4+distsq*distsq)^2)
-        end
+            end
     end
     return dvc
 end
+
 
 # Function for calculating the wake rollup
 function wakeroll(surf::TwoDSurf, curfield::TwoDFlowField, dt)
@@ -304,24 +325,46 @@ function wakeroll(surf::TwoDSurf, curfield::TwoDFlowField, dt)
     end
 
     #Consider the effets of viscosity on each vortex
-    for i = 1:ntev-1
-        ud_x, ud_z = visc_vel(curfield.tev[i], [map(q -> q.x, curfield.tev); map(q -> q.x, curfield.lev); map(q -> q.x, curfield.extv)], [map(q -> q.z, curfield.tev); map(q -> q.z, curfield.lev); map(q -> q.z, curfield.extv) ])
-        curfield.tev[i].x += dt*ud_x
-        curfield.tev[i].z += dt*ud_z
+
+    udiff = zeros(ntev + nlev + nextv)
+    wdiff = zeros(ntev + nlev + nextv)
+    udiff, wdiff = visc_vel2(surf.bv, [map(q -> q.x, curfield.tev); map(q -> q.x, curfield.lev); map(q -> q.x, curfield.extv)], [map(q -> q.z, curfield.tev); map(q -> q.z, curfield.lev); map(q -> q.z, curfield.extv) ])
+
+    for i = 1:ntev
+        curfield.tev[i].vx += udiff[i]
+        curfield.tev[i].vz += wdiff[i]
         curfield.tev[i].vc = sqrt(curfield.tev[i].vc*curfield.tev[i].vc + update_coresize(curfield.tev[i],curfield.tev)*dt)
     end
-    for i = 1:nlev
-        ud_x, ud_z = visc_vel(curfield.lev[i], [map(q -> q.x, curfield.tev); map(q -> q.x, curfield.lev); map(q -> q.x, curfield.extv)], [map(q -> q.z, curfield.tev); map(q -> q.z, curfield.lev); map(q -> q.z, curfield.extv) ])
-        curfield.lev[i].x += dt*ud_x
-        curfield.lev[i].z += dt*ud_z
-        curfield.lev[i].vc = sqrt(curfield.lev[i].vc*curfield.lev[i].vc + update_coresize(curfield.lev[i],curfield.lev)*dt)
+    for i = ntev+1:ntev+nlev
+
+        curfield.lev[i-ntev].vx += udiff[i]
+        curfield.lev[i-ntev].vz += wdiff[i]
+        curfield.lev[i-ntev].vc = sqrt(curfield.lev[i-ntev].vc*curfield.lev[i-ntev].vc + update_coresize(curfield.lev[i-ntev],curfield.lev)*dt)
     end
-    for i = 1:nextv
-        ud_x, ud_z = visc_vel(curfield.extv[i], [map(q -> q.x, curfield.tev); map(q -> q.x, curfield.lev); map(q -> q.x, curfield.extv)], [map(q -> q.z, curfield.tev); map(q -> q.z, curfield.lev); map(q -> q.z, curfield.extv) ])
-        curfield.extv[i].x += dt*ud_x
-        curfield.extv[i].z += dt*ud_z
-        curfield.extv[i].vc = sqrt(curfield.extv[i].vc*curfield.extv[i].vc + update_coresize(curfield.extv[i],curfield.extv)*dt)
+    for i = ntev+nlev+1:ntev+nlev+nextv
+        curfield.extv[i-ntev-nlev].vx += udiff[i]
+        curfield.extv[i-ntev-nlev].vz += wdiff[i]
+        curfield.extv[i-ntev-nlev].vc = sqrt(curfield.extv[i-ntev-nlev].vc*curfield.extv[i-ntev-nlev].vc + update_coresize(curfield.extv[i-ntev-nlev],curfield.extv)*dt)
     end
+
+    #for i = 1:ntev-1
+        #ud_x, ud_z = visc_vel(curfield.tev[i], [map(q -> q.x, curfield.tev); map(q -> q.x, curfield.lev); map(q -> q.x, curfield.extv)], [map(q -> q.z, curfield.tev); map(q -> q.z, curfield.lev); map(q -> q.z, curfield.extv)],0.0001)
+        #curfield.tev[i].x += dt*ud_x
+        #curfield.tev[i].z += dt*ud_z
+        #curfield.tev[i].vc = sqrt(curfield.tev[i].vc*curfield.tev[i].vc + update_coresize(curfield.tev[i],curfield.tev)*dt)
+    #end
+    #for i = 1:nlev
+        #ud_x, ud_z = visc_vel(curfield.lev[i], [map(q -> q.x, curfield.tev); map(q -> q.x, curfield.lev); map(q -> q.x, curfield.extv)], [map(q -> q.z, curfield.tev); map(q -> q.z, curfield.lev); map(q -> q.z, curfield.extv) ])
+        #curfield.lev[i].x += dt*ud_x
+        #curfield.lev[i].z += dt*ud_z
+        #curfield.lev[i].vc = sqrt(curfield.lev[i].vc*curfield.lev[i].vc + update_coresize(curfield.lev[i],curfield.lev)*dt)
+    #end
+    #for i = 1:nextv
+        #ud_x, ud_z = visc_vel(curfield.extv[i], [map(q -> q.x, curfield.tev); map(q -> q.x, curfield.lev); map(q -> q.x, curfield.extv)], [map(q -> q.z, curfield.tev); map(q -> q.z, curfield.lev); map(q -> q.z, curfield.extv) ])
+        #curfield.extv[i].x += dt*ud_x
+        #curfield.extv[i].z += dt*ud_z
+        #curfield.extv[i].vc = sqrt(curfield.extv[i].vc*curfield.extv[i].vc + update_coresize(curfield.extv[i],curfield.extv)*dt)
+    #end
     return curfield
 end
 
