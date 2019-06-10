@@ -201,7 +201,7 @@ function update_bv(surf::TwoDSurf)
 end
 
 # Function for calculating the diffusion velocity induced by viscosity
-function visc_vel(vortex::TwoDVort,t_x,t_z, nu=0.00001)
+function visc_vel(vortex::TwoDVort,t_x,t_z, nu=0.0000001)
 
     ud_x = 0.
     ud_z = 0.
@@ -216,7 +216,7 @@ function visc_vel(vortex::TwoDVort,t_x,t_z, nu=0.00001)
     end
 end
 
-function visc_vel2(vortex::Vector{TwoDVort},t_x,t_z, nu=0.0001)
+function visc_vel2(vortex::Vector{TwoDVort},t_x,t_z, nu=0.00001)
 
     ud_x = zeros(length(t_x))
     ud_z = zeros(length(t_x))
@@ -245,7 +245,7 @@ function update_coresize(vortex::TwoDVort, vortices::Vector{TwoDVort}, nu=0.0000
             xdist = vortex.x - vortices[j].x
             zdist = vortex.z - vortices[j].z
             distsq = xdist*xdist + zdist*zdist
-            dvc += 24*nu*vortex.vc*vortex.vc+(distsq*vortices[j].vc^4)/((vortices[j].vc^4+distsq*distsq)^2)
+            dvc += 24*nu*vortex.vc*vortex.vc*(distsq*vortices[j].vc^4)/((vortices[j].vc^4+distsq*distsq)^2)
             end
     end
     return dvc
@@ -281,7 +281,7 @@ function wakeroll(surf::TwoDSurf, curfield::TwoDFlowField, dt)
     #Add the influence of velocities induced by bound vortices
     utemp = zeros(ntev + nlev + nextv)
     wtemp = zeros(ntev + nlev + nextv)
-    utemp, wtemp = ind_vel(surf.bv, [map(q -> q.x, curfield.tev); map(q -> q.x, curfield.lev); map(q -> q.x, curfield.extv)], [map(q -> q.z, curfield.tev); map(q -> q.z, curfield.lev); map(q -> q.z, curfield.extv) ])
+    utemp, wtemp = visc_vel2(surf.bv, [map(q -> q.x, curfield.tev); map(q -> q.x, curfield.lev); map(q -> q.x, curfield.extv)], [map(q -> q.z, curfield.tev); map(q -> q.z, curfield.lev); map(q -> q.z, curfield.extv) ])
 
     for i = 1:ntev
         curfield.tev[i].vx += utemp[i]
@@ -336,7 +336,6 @@ function wakeroll(surf::TwoDSurf, curfield::TwoDFlowField, dt)
         curfield.tev[i].vc = sqrt(curfield.tev[i].vc*curfield.tev[i].vc + update_coresize(curfield.tev[i],curfield.tev)*dt)
     end
     for i = ntev+1:ntev+nlev
-
         curfield.lev[i-ntev].vx += udiff[i]
         curfield.lev[i-ntev].vz += wdiff[i]
         curfield.lev[i-ntev].vc = sqrt(curfield.lev[i-ntev].vc*curfield.lev[i-ntev].vc + update_coresize(curfield.lev[i-ntev],curfield.lev)*dt)
